@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "channels": [
+    {
+      "name": "wire-desk",
+      "displayName": "Wire Desk",
+      "providers": {
+        "slack": {
+          "env": {
+            "botToken": "INTELLIGENCE_CHANNEL_WIRE_DESK_SLACK_BOT_TOKEN",
+            "signingSecret": "INTELLIGENCE_CHANNEL_WIRE_DESK_SLACK_SIGNING_SECRET"
+          }
+        }
+      }
+    }
+  ]
+}

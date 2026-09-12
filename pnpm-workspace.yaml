@@ -13,3 +13,21 @@ overrides:
 trustPolicy: none
 
 trustPolicyExclude: pino,undici-types,undici
+
+# These sponsor/framework packages ship same-day releases during the hackathon
+# window (Sep 11-12 2026); pnpm 11's default 24h minimumReleaseAge quarantine
+# blocks installing them entirely otherwise. Scoped to just these 8 packages
+# instead of disabling the policy outright.
+minimumReleaseAgeExclude:
+  - "@ai-sdk/anthropic"
+  - "@ai-sdk/gateway"
+  - "@copilotkit/core"
+  - "@copilotkit/shared"
+  - "@langchain/core"
+  - "@langchain/langgraph-sdk"
+  - "@langchain/langgraph"
+  - "ai"
+
+allowBuilds:
+  '@scarf/scarf': false
+  esbuild: true

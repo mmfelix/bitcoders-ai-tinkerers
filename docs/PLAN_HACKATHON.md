@@ -45,6 +45,13 @@ Leer antes de arrancar cualquier track — evitan que alguien tome una decisión
 - **Persistencia: JSON plano en disco** (`apps/channel/.data/decisions.json`), con `node:fs/promises` únicamente. Cero dependencia nueva, cero riesgo de migración con menos de un día encima. Agregar `.data/` a `.gitignore`.
 - **El store no lleva `isXConfigured()`.** No tiene credencial externa, es un archivo local — no es una capability opcional como `isSearchConfigured()`. Se registra siempre; archivo vacío o ausente es un estado de *datos* (se maneja adentro del tool), no de *configuración*.
 - **Nombres de tools/components congelados desde el minuto uno**: `master_brief_card`, `edition_card`, `format_stats_card`, `log_decision`, `get_format_stats`. El prompt de Diego los va a citar textualmente — si alguien los renombra a mitad de camino, el agente deja de llamarlos y nadie se entera hasta la demo.
+- **Modelo vía OpenRouter, no OpenAI.** Cada uno pone en su `.env` local:
+  ```dotenv
+  MODEL_PROVIDER=openrouter
+  OPENROUTER_API_KEY=your-key
+  MODEL=openai/gpt-5.6-sol
+  ```
+  Key en [openrouter.ai/keys](https://openrouter.ai/keys). `MODEL` debe ser un slug del catálogo que soporte tool calling — sin eso ninguno de los tools/components nuevos puede llamarse. No hace falta `OPENAI_API_KEY`; `resolveModel()` en `packages/agent-core/src/model.ts` detecta OpenRouter solo con `OPENROUTER_API_KEY` seteada.
 
 ## Felix — backend / tools
 

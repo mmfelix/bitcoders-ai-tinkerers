@@ -98,6 +98,8 @@ Antes de escribir una línea de código conviene validar con un creador real: qu
 
 Un canal de Slack donde un equipo de contenido chico ya discute qué van a publicar ("che, vi que tal cosa está explotando", "¿hacemos algo del lanzamiento del jueves?"). El agente vive ahí, no en una app aparte.
 
+**¿Para qué es Slack, puntualmente?** Es la superficie del agente, no un destino de publicación. La regla del hackathon pide construir el agente "for a place people already work, talk, or live" — Slack es donde el equipo *ya* discute ideas hoy, así que el agente lee ese contexto real (`read_thread`) en vez de arrancar de un prompt en blanco. Sacá el canal y perdés exactamente eso: el contexto gratis de lo que el equipo ya decidió, y el lugar natural para aprobar un formato con un click. Publicar de verdad a Instagram/TikTok/etc. queda fuera de alcance (sección 7) — Slack es donde se decide qué publicar, no por dónde sale.
+
 ### Recorrido, mapeado a las piezas que ya existen
 
 | Paso original | Pieza en `apps/channel` | Qué cambia |
