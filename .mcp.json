@@ -7,10 +7,6 @@
     "exa": {
       "type": "http",
       "url": "https://mcp.exa.ai/mcp"
-    },
-    "higgsfield": {
-      "type": "http",
-      "url": "https://mcp.higgsfield.ai/mcp"
     }
   }
 }

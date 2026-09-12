@@ -1,6 +1,8 @@
-<div align="center">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mmfelix/bitcoders-ai-tinkerers/main/assets/wire-desk-logo.png" alt="Wire Desk Logo" width="240" />
+</p>
 
-<img src="assets/wire-desk-logo.png" alt="Wire Desk Logo" width="220" />
+<div align="center">
 
 # Wire Desk
 ### Agente Editorial Ambiental y Multiplataforma para Equipos de Contenido
