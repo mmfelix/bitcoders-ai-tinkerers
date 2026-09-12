@@ -140,4 +140,86 @@ Sacar de la demo: publicación real a redes (queda como Fase 3, igual que en la 
 
 ---
 
-*Versión navegable con diagrama y tarjetas: [Wire Desk (artifact)](https://claude.ai/code/artifact/a755fbb4-df53-4cc7-9059-fbce7924f25d)*
+## 10. Arquitectura
+
+Componentes y dónde vive cada uno, con nombres reales del repo (`apps/channel/src`, `packages/agent-core`). Lo único que no existe todavía es el archivo de decisiones y los dos tools que lo leen/escriben.
+
+```mermaid
+flowchart TD
+    THREAD[["Hilo de Slack\n(el canal del equipo)"]]
+
+    subgraph CH["apps/channel/src"]
+        LIFECYCLE["channel.tsx\nonMention / onMessage"]
+        AGENTFACTORY["agent.ts\nChannelRunAgent"]
+        TOOLS["tools.tsx\nread_thread · log_decision (nuevo) · get_format_stats (nuevo)"]
+        SEARCH["search.tsx\nsearch_web (Exa)"]
+        COMPONENTS["components.tsx\nMasterBriefCard (nuevo) · EditionCard (nuevo) · FormatStatsCard (nuevo)"]
+    end
+
+    subgraph CORE["packages/agent-core"]
+        MAKEAGENT["agent.ts → makeAgent()"]
+        PROMPT["prompt.ts\nSURFACE_RULES + WIRE_DESK_ROLE (nuevo, reemplaza ONCALL_ROLE)"]
+        MODEL["model.ts → resolveModel()"]
+    end
+
+    STORE[("Archivo de decisiones\nJSON/SQLite local — nuevo")]
+    EXA[("Exa Search API")]
+
+    THREAD -- "@mención / mensaje" --> LIFECYCLE
+    LIFECYCLE --> AGENTFACTORY --> MAKEAGENT
+    MAKEAGENT --- PROMPT
+    MAKEAGENT --- MODEL
+    MAKEAGENT -- "tool call" --> TOOLS
+    MAKEAGENT -- "tool call" --> SEARCH
+    MAKEAGENT -- "render" --> COMPONENTS
+    TOOLS <-- "leer / escribir" --> STORE
+    SEARCH --> EXA
+    TOOLS -- "thread.getMessages()" --> THREAD
+    COMPONENTS -- "thread.post / thread.update" --> THREAD
+```
+
+Flujo de la demo, con el detalle que importa para el criterio técnico: **el click de aprobación nunca vuelve a pasar por el agente** — el botón corre su propio handler y escribe directo al archivo, igual que ya hace `propose_action` con las decisiones de incidentes.
+
+```mermaid
+sequenceDiagram
+    actor Equipo as Equipo de contenido
+    participant Hilo as Hilo de Slack
+    participant Agente as Wire Desk (agent-core)
+    participant Exa as search_web
+    participant Log as Archivo de decisiones
+
+    Equipo->>Hilo: mensajes previos sobre el tema
+    Equipo->>Hilo: @mención al agente
+    Hilo->>Agente: onMention → thread.subscribe() + runAgent()
+    Agente->>Hilo: read_thread()
+    Hilo-->>Agente: mensajes previos
+    Agente->>Exa: search_web(tema)
+    alt Exa responde
+        Exa-->>Agente: señal de tendencia
+    else Exa falla
+        Exa-->>Agente: error
+        Agente->>Hilo: "no pude buscar tendencia, redacto igual con el hilo"
+    end
+    Agente->>Hilo: MasterBriefCard + ediciones (un botón por plataforma)
+
+    Equipo->>Hilo: click "Uso este Reel"
+    Note over Hilo,Log: el botón ejecuta su propio onClick — no vuelve a llamar al agente
+    Hilo->>Log: log_decision(idea, plataforma, fecha)
+    Hilo->>Hilo: thread.update("Guardado en el archivo")
+
+    Equipo->>Hilo: "¿qué formato vengo usando más?"
+    Hilo->>Agente: onMessage (ya suscripto) → runAgent()
+    Agente->>Log: get_format_stats()
+    Log-->>Agente: conteos por formato
+    Agente->>Hilo: FormatStatsCard
+```
+
+### Piezas nuevas a construir
+
+| Archivo | Qué agrega |
+|---|---|
+| `apps/channel/src/store.ts` (nuevo) | Lectura/escritura del archivo de decisiones — JSON o SQLite local alcanza para la demo |
+| `apps/channel/src/tools.tsx` | Sumar `log_decision` y `get_format_stats` junto a `read_thread` |
+| `apps/channel/src/components.tsx` | Sumar `MasterBriefCard`, `EditionCard` (o `Table` de ediciones) y `FormatStatsCard`, con el mismo patrón que `IncidentCard`/`Timeline` |
+| `apps/channel/src/channel.tsx` | Registrar los tools/components nuevos en `tools`/`components`, y ajustar el `context` y `welcomeMessage` al dominio de contenido |
+| `packages/agent-core/src/prompt.ts` | Nuevo `WIRE_DESK_ROLE` que reemplaza `ONCALL_ROLE`; `SURFACE_RULES` se reutiliza sin tocar |
