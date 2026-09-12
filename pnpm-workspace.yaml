@@ -1,0 +1,15 @@
+packages:
+  - "packages/*"
+  - "apps/channel"
+  - "apps/web"
+
+linkWorkspacePackages: true
+
+nodeLinker: hoisted
+
+overrides:
+  "@ag-ui/client": "0.0.59"
+
+trustPolicy: none
+
+trustPolicyExclude: pino,undici-types,undici

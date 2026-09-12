@@ -1,0 +1,44 @@
+{
+  "$schema": "https://kilo.ai/config.json",
+  "mcp": {
+    "copilotkit": {
+      "type": "remote",
+      "url": "https://mcp.copilotkit.ai/mcp",
+      "enabled": true
+    },
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp",
+      "enabled": true
+    }
+  },
+  "permission": {
+    "read": {
+      "*": "allow"
+    },
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "external_directory": "allow",
+    "edit": {
+      "*": "allow"
+    },
+    "bash": {
+      "pnpm *": "allow",
+      "npm *": "allow",
+      "npx *": "allow",
+      "node *": "allow",
+      "git status *": "allow",
+      "git diff *": "allow",
+      "git log *": "allow",
+      "git branch *": "allow",
+      "git add *": "allow",
+      "git commit *": "allow",
+      "git push *": "allow",
+      "pwd *": "allow",
+      "ls *": "allow",
+      "cat *": "allow",
+      "find *": "allow"
+    }
+  }
+}

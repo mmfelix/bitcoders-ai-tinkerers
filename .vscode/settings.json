@@ -1,0 +1,10 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "terminal.integrated.env.linux": {
+    "PATH": "/home/felixjr/.nvm/versions/node/v22.23.2/bin:${env:PATH}"
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true
+  }
+}
