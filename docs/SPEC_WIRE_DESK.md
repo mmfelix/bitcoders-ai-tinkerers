@@ -12,7 +12,7 @@ El problema no es la falta de ideas. Es el tiempo que se va en tres tareas separ
 
 - **Rastrear** qué está resonando ahora.
 - **Reescribir** la misma idea seis veces para seis formatos distintos.
-- **Recordar** qué formato viene funcionando mejor para este creador en particular, no en promedio de mercado.
+- **Recordar** qué formato viene eligiendo este creador en particular, sin convertir el historial de elecciones en una promesa de rendimiento.
 
 Wire Desk ataca las tres a la vez con un solo recorrido: detecta una señal de tendencia relevante al nicho, la redacta como un prototipo modular editable, deja que ese prototipo se derrame en variantes por plataforma respetando las reglas reales de cada una, y archiva qué formato eligió el creador para poder comparar con el tiempo.
 
@@ -26,7 +26,7 @@ El nombre viene de cómo trabajaba una agencia de noticias: una historia se fili
 | 02 · Redacción | Plantilla maestra | Un modelo redacta un prototipo modular: gancho, desarrollo, cierre, nota visual |
 | 03 · Ediciones | Adaptación | La plantilla se transforma en una variante por plataforma, según sus reglas reales |
 | 04 · Redacción final | Revisión del creador | El creador edita, elige o descarta cada edición antes de publicar por su cuenta |
-| 05 · Archivo | Métricas centrales | Se registra qué formato y plataforma se eligieron, y cómo les fue |
+| 05 · Archivo | Historial central | Se registra qué formato y plataforma se eligieron; las métricas quedan fuera de este MVP |
 
 ## 3. La plantilla maestra
 
@@ -56,7 +56,7 @@ Una distinción que el prototipo debe marcar siempre: inspirarse en una tendenci
 
 ## 5. El archivo central
 
-Lo que se guarda no es solo "se publicó esto acá": es fecha, tendencia de origen, plataforma y formato elegidos frente a los descartados y, cuando hay integración, alcance e interacciones. El valor no está en medir un post suelto — está en ver, con el tiempo, qué formato rinde mejor para *este* creador, no un promedio del mercado.
+Lo que se guarda no es solo "se publicó esto acá": es fecha, tendencia de origen, plataforma y formato elegidos frente a los descartados y, cuando hay integración, alcance e interacciones. En este MVP el archivo conserva elecciones reales para compararlas con el tiempo; no afirma qué formato rinde mejor ni sustituye métricas de plataforma.
 
 En el MVP esa carga es manual: el creador marca qué eligió publicar y pega el link o los números. La lectura automática vía API de cada plataforma es una fase posterior, no un requisito para empezar a aprender del patrón.
 
@@ -107,7 +107,7 @@ Un canal de Slack donde un equipo de contenido chico ya discute qué van a publi
 | 02 · Redacción | Nuevo `defineChannelComponent` `MasterBriefCard` (mismo patrón que `IncidentCard` en [`src/components.tsx`](../apps/channel/src/components.tsx)) | Dibuja los 4 bloques (Gancho / Desarrollo / Cierre / Nota visual) como card nativa, no como texto |
 | 03 · Ediciones | `Table`/`Fields` por plataforma dentro de la misma card, o una card por plataforma | Cada edición respeta el límite real (tabla de la sección 3) |
 | 04 · Revisión | `Actions` + `Button` por edición, siguiendo el patrón exacto de `propose_action` | Un click por plataforma dice "uso este formato" — el click **reporta una decisión, no ejecuta nada** (mismo guardrail que ya usa el incident demo) |
-| 05 · Archivo | Nuevo tool `log_decision` + `get_format_stats` | `log_decision` escribe la elección (idea, tendencia origen, plataforma, fecha) en un almacén simple (JSON/SQLite local alcanza para la demo) — es la mutación de estado real que pide el criterio C. `get_format_stats` lee ese archivo y responde en el mismo hilo "¿qué formato me viene funcionando mejor?" |
+| 05 · Archivo | Nuevo tool `log_decision` + `get_format_stats` | `log_decision` escribe la elección (idea, tendencia origen, plataforma, fecha) en un almacén simple (JSON/SQLite local alcanza para la demo) — es la mutación de estado real que pide el criterio C. `get_format_stats` lee ese archivo y responde en el mismo hilo qué formato se ha elegido más veces. |
 
 ### Por qué esto puntúa distinto a la versión dashboard
 
@@ -136,7 +136,7 @@ Sacar de la demo: publicación real a redes (queda como Fase 3, igual que en la 
 1. Canal con 2–3 mensajes previos sobre un tema real del creador.
 2. @mención al agente → lee el hilo, busca señal con Exa, postea `MasterBriefCard` + ediciones por plataforma.
 3. Click en "Uso este Reel" → la card se actualiza a "Guardado en el archivo" (sin publicar nada).
-4. Pregunta de seguimiento en el mismo hilo: "¿qué formato vengo eligiendo más este mes?" → el agente responde con la tabla de `get_format_stats`.
+4. Pregunta de seguimiento en el mismo hilo: "¿qué formato vengo eligiendo más en el historial registrado?" → el agente responde con la tabla de `get_format_stats`.
 
 ---
 

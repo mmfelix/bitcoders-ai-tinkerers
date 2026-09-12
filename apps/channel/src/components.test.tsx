@@ -11,7 +11,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { renderToIR } from "@copilotkit/channels";
-import { IncidentCard, Timeline } from "./components";
+import {
+  EditionCard,
+  FormatStatsCard,
+  IncidentCard,
+  MasterBriefCard,
+  Timeline,
+  welcomeMessage,
+} from "./components";
 
 const ctx = { platform: "slack" as const, signal: new AbortController().signal };
 
@@ -96,5 +103,58 @@ describe("timeline", () => {
       Timeline.render({ title: "T", events: [{ at: "02:31", what: "no owner" }] }, ctx),
     );
     assert.ok(out.includes("—"));
+  });
+});
+
+describe("wire desk cards", () => {
+  it("renders the modular master brief without incident language", async () => {
+    const out = await render(
+      MasterBriefCard.render(
+        {
+          idea: "Agentic coding diary",
+          sourceTrend: "thread only",
+          hook: "The first command I run each morning",
+          development: "A three-step workflow",
+          closing: "Show your setup",
+          visualNote: "Screen recording with captions",
+        },
+        ctx,
+      ),
+    );
+    assert.match(out, /Agentic coding diary/);
+    assert.match(out, /The first command/);
+    assert.doesNotMatch(out, /incident|outage/i);
+  });
+
+  it("renders exact recorded stats and an explicit empty state", async () => {
+    const stats = await render(
+      FormatStatsCard.render(
+        {
+          stats: [
+            {
+              format: "Reel",
+              platform: "instagram_reel",
+              count: 3,
+              lastUsed: "2026-09-12T10:00:00Z",
+            },
+          ],
+        },
+        ctx,
+      ),
+    );
+    const empty = await render(FormatStatsCard.render({ stats: [] }, ctx));
+    assert.match(stats, /Reel/);
+    assert.match(stats, /3/);
+    assert.match(stats, /2026-09-12T10:00:00Z/);
+    assert.match(empty, /No decisions logged yet/);
+  });
+
+  it("uses content-team welcome copy and never promises publication", async () => {
+    const out = await render(welcomeMessage("Slack"));
+    assert.match(out, /Wire Desk/);
+    assert.match(out, /Draft a brief/);
+    assert.match(out, /Publish or send anything/);
+    assert.doesNotMatch(out, /incident|outage/i);
+    assert.equal(EditionCard.name, "edition_card");
   });
 });

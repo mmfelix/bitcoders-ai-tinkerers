@@ -72,9 +72,9 @@ Expected: the card updates in place to "Saved to the archive: **Reel** for ...".
 
 ### 3. Ask the follow-up question
 
-> @wiredesk what format am I actually using most this month?
+> @wiredesk what format am I actually choosing most in the recorded history?
 
-Expected: `get_format_stats` then `format_stats_card`, listing Reel with a count that matches exactly how many times it's been clicked during rehearsal plus the live take — never an invented industry-average answer. Run this once against a fresh/empty log first and confirm it says plainly there is no history yet, instead of guessing.
+Expected: `get_format_stats` then `format_stats_card`, listing Reel with a count that matches exactly how many times it has been clicked in the recorded history — never an invented industry-average or performance answer. Run this once against a fresh/empty log first and confirm it says plainly there is no history yet, instead of guessing.
 
 ### 4. Show a failure path
 

@@ -5,6 +5,7 @@
  */
 export { makeAgent } from "./agent";
 export { MOBILE_FINANCE_PROMPT } from "./mobile-finance-prompt";
+export { WIRE_DESK_PROMPT } from "./wire-desk-prompt";
 export { resolveModel } from "./model";
 export { searchWeb, isSearchConfigured } from "./capabilities/search";
 export {

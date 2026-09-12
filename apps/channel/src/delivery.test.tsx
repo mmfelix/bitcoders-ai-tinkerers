@@ -1,14 +1,18 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AbstractAgent } from "@ag-ui/client";
 import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/core";
 import { from, type Observable } from "rxjs";
-import { createChannel } from "@copilotkit/channels";
+import { createChannel, MemoryStore } from "@copilotkit/channels";
 import { startChannelsWithGatewayControl } from "@copilotkit/channels-intelligence";
 import type { searchWeb } from "agent-core";
-import { IncidentCard } from "./components";
+import { EditionCard, IncidentCard } from "./components";
 import { createSearchTool } from "./search";
 import { ManagedGateway, preparedDelivery } from "./testing/managed-gateway";
+import { z } from "zod";
 
 /** Real AG-UI events exercise the SDK tool loop and Slack renderer together. */
 class ResearchAgent extends AbstractAgent {
@@ -186,6 +190,393 @@ it(
       gateway.packets.map((packet) => packet.seq),
       payloads.map((_, index) => index),
     );
+  },
+);
+
+class EditionAgent extends AbstractAgent {
+  private iteration = 0;
+
+  override clone(): EditionAgent {
+    const clone = new EditionAgent();
+    clone.threadId = this.threadId;
+    clone.setMessages([...this.messages]);
+    clone.setState(this.state);
+    clone.iteration = this.iteration;
+    return clone;
+  }
+
+  run(input: RunAgentInput): Observable<BaseEvent> {
+    const events: BaseEvent[] = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+    if (this.iteration++ === 0) {
+      const toolCallId = "edition_tool_1";
+      const args = {
+        idea: "Agentic coding diary",
+        sourceTrend: "thread only",
+        platform: "instagram_reel",
+        format: "Reel",
+        content: "Three commands that make an agentic coding session clearer.",
+      };
+      events.push(
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId,
+          toolCallName: "edition_card",
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId,
+          delta: JSON.stringify(args),
+        },
+        { type: EventType.TOOL_CALL_END, toolCallId },
+      );
+    }
+    events.push({
+      type: EventType.RUN_FINISHED,
+      threadId: input.threadId,
+      runId: input.runId,
+    });
+    return from(events);
+  }
+}
+
+class RejectFirstEditionUpdateGateway extends ManagedGateway {
+  private rejectNextUpdate = true;
+
+  override async join(topic: string, payload: unknown) {
+    const channel = await super.join(topic, payload);
+    return {
+      ...channel,
+      push: async (event: string, packet: unknown) => {
+        const ack = await channel.push(event, packet);
+        const parsed = z
+          .object({ payload: z.object({ kind: z.string() }) })
+          .parse(packet);
+        if (
+          parsed.payload.kind === "slack.message.replace" &&
+          this.rejectNextUpdate
+        ) {
+          this.rejectNextUpdate = false;
+          return {
+            ...ack,
+            phase: "failed",
+            result: {
+              ...ack.result,
+              status: "failed",
+              error: "provider_failed",
+            },
+          };
+        }
+        return ack;
+      },
+    };
+  }
+}
+
+function editionActionId(payload: unknown): string {
+  const card = z
+    .object({
+      kind: z.literal("slack.message.create"),
+      blocks: z.unknown(),
+    })
+    .parse(payload);
+  const blocks = z
+    .array(
+      z.object({
+        type: z.string(),
+        elements: z.array(z.unknown()).optional(),
+      }),
+    )
+    .parse(card.blocks);
+  const buttons = blocks
+    .flatMap((block) =>
+      block.type === "actions" ? (block.elements ?? []) : [],
+    )
+    .map((element) =>
+      z
+        .object({
+          type: z.literal("button"),
+          text: z.object({ text: z.string() }),
+          action_id: z.string(),
+        })
+        .parse(element),
+    );
+  const button = buttons.find((candidate) =>
+    candidate.text.text.includes("Use this Reel"),
+  );
+  assert.ok(button, "edition card must expose the real Slack action id");
+  return button.action_id;
+}
+
+async function startEditionDelivery(
+  gateway: ManagedGateway,
+  storePath: string,
+  runtimeInstanceId: string,
+) {
+  const previousPath = process.env.WIRE_DESK_STORE_PATH;
+  process.env.WIRE_DESK_STORE_PATH = storePath;
+  const channel = createChannel({
+    name: "support",
+    identifyUser: "platform",
+    agent: () => new EditionAgent(),
+    store: { adapter: new MemoryStore() },
+    components: [EditionCard],
+  });
+  const runCanonical = { count: 0 };
+  const handlerFailure: { value: unknown } = { value: undefined };
+  channel.onMessage(async ({ thread }) => {
+    try {
+      await thread.runAgent();
+    } catch (error) {
+      handlerFailure.value = error;
+      throw error;
+    }
+  });
+  const handle = await startChannelsWithGatewayControl([channel], {
+    session: gateway,
+    scope: { projectId: 1, channelName: "support" },
+    runtimeInstanceId,
+    loadHistory: async () => [],
+    appApiBaseUrl: "https://api.example",
+    apiKey: "cpk-offline-test",
+    appApiFetch: async (input) => {
+      if (String(input).endsWith("/charge")) {
+        return Response.json({ charged: true });
+      }
+      return Response.json({
+        messages: [],
+        truncation: {
+          messageLimit: false,
+          byteLimit: false,
+          omittedMessageCount: 0,
+        },
+      });
+    },
+    runCanonical: async (args) => {
+      runCanonical.count += 1;
+      const result = await args.execute(
+        {},
+        { threadId: args.threadId, runId: args.runId },
+      );
+      return result;
+    },
+  });
+  const restore = () => {
+    if (previousPath === undefined) delete process.env.WIRE_DESK_STORE_PATH;
+    else process.env.WIRE_DESK_STORE_PATH = previousPath;
+  };
+  return {
+    handle,
+    runCanonical,
+    handlerFailure,
+    restore,
+  };
+}
+
+async function deliverEditionClick(
+  gateway: ManagedGateway,
+  initialDelivery: ReturnType<typeof preparedDelivery>,
+  actionId: string,
+  label: string,
+) {
+  const click = preparedDelivery(label, "slack", {
+    kind: "interaction",
+    actionId,
+    messageRef: { id: "pref_v1_edition_message_123" },
+  });
+  await gateway.deliver({
+    ...initialDelivery,
+    deliveryId: click.deliveryId,
+    turn: click.turn,
+  });
+}
+
+it(
+  "persists one real EditionCard click, updates Slack, and never reruns the agent",
+  { timeout: 10_000 },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "wire-desk-edition-"));
+    const storePath = join(root, "private archive", "decisions.json");
+    const gateway = new ManagedGateway();
+    const { handle, runCanonical, handlerFailure, restore } =
+      await startEditionDelivery(
+        gateway,
+        storePath,
+        "rti_edition_success",
+      );
+    try {
+      const initialDelivery = preparedDelivery("edition", "slack", {
+        kind: "text",
+        text: "Draft from this content thread",
+      });
+      await gateway.deliver(initialDelivery);
+      const card = gateway.packets
+        .map(({ payload }) => payload)
+        .find(
+          (payload) =>
+            payload.kind === "slack.message.create" &&
+            JSON.stringify(payload).includes("Use this Reel"),
+        );
+      assert.ok(card, "the managed delivery must render an EditionCard");
+      assert.equal(handlerFailure.value, undefined);
+      const actionId = editionActionId(card);
+      await deliverEditionClick(
+        gateway,
+        initialDelivery,
+        actionId,
+        "edition_click",
+      );
+      await deliverEditionClick(
+        gateway,
+        initialDelivery,
+        actionId,
+        "edition_duplicate_click",
+      );
+
+      const history = JSON.parse(await readFile(storePath, "utf8"));
+      assert.equal(history.length, 1);
+      assert.equal(history[0].format, "Reel");
+      const updates = gateway.packets
+        .map(({ payload }) => payload)
+        .filter((payload) => payload.kind === "slack.message.replace");
+      assert.equal(updates.length, 1);
+      assert.match(JSON.stringify(updates[0]), /Saved to the archive/);
+      assert.equal(runCanonical.count, 1);
+    } finally {
+      await handle.stop();
+      restore();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it(
+  "retries an update without appending twice after Slack rejects the first update",
+  { timeout: 10_000 },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "wire-desk-update-retry-"));
+    const storePath = join(root, "decisions.json");
+    const gateway = new RejectFirstEditionUpdateGateway();
+    const { handle, runCanonical, restore } =
+      await startEditionDelivery(
+        gateway,
+        storePath,
+        "rti_edition_update_retry",
+      );
+    try {
+      const initialDelivery = preparedDelivery("edition_retry", "slack", {
+        kind: "text",
+        text: "Draft this thread",
+      });
+      await gateway.deliver(initialDelivery);
+      const card = gateway.packets
+        .map(({ payload }) => payload)
+        .find(
+          (payload) =>
+            payload.kind === "slack.message.create" &&
+            JSON.stringify(payload).includes("Use this Reel"),
+        );
+      assert.ok(card, "the managed delivery must render an EditionCard");
+      const actionId = editionActionId(card);
+      await deliverEditionClick(
+        gateway,
+        initialDelivery,
+        actionId,
+        "edition_update_failure",
+      ).catch(() => undefined);
+      await deliverEditionClick(
+        gateway,
+        initialDelivery,
+        actionId,
+        "edition_update_retry",
+      );
+
+      const history = JSON.parse(await readFile(storePath, "utf8"));
+      assert.equal(history.length, 1);
+      const updates = gateway.packets
+        .map(({ payload }) => payload)
+        .filter((payload) => payload.kind === "slack.message.replace");
+      assert.equal(updates.length, 2);
+      assert.equal(runCanonical.count, 1);
+    } finally {
+      await handle.stop();
+      restore();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it(
+  "allows an append failure to be retried without a false confirmation",
+  { timeout: 10_000 },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "wire-desk-append-retry-"));
+    const blockedParent = join(root, "blocked");
+    const storePath = join(blockedParent, "decisions.json");
+    await writeFile(blockedParent, "not a directory", "utf8");
+    const validPath = join(root, "recovered", "decisions.json");
+    const gateway = new ManagedGateway();
+    const { handle, runCanonical, restore } =
+      await startEditionDelivery(
+        gateway,
+        storePath,
+        "rti_edition_append_retry",
+      );
+    try {
+      const initialDelivery = preparedDelivery("edition_append_retry", "slack", {
+        kind: "text",
+        text: "Draft this thread",
+      });
+      await gateway.deliver(initialDelivery);
+      const card = gateway.packets
+        .map(({ payload }) => payload)
+        .find(
+          (payload) =>
+            payload.kind === "slack.message.create" &&
+            JSON.stringify(payload).includes("Use this Reel"),
+        );
+      assert.ok(card, "the managed delivery must render an EditionCard");
+      const actionId = editionActionId(card);
+      await deliverEditionClick(
+        gateway,
+        initialDelivery,
+        actionId,
+        "edition_append_failure",
+      );
+      assert.ok(
+        gateway.packets.some(
+          ({ payload }) =>
+            payload.kind === "slack.message.create" &&
+            JSON.stringify(payload).includes("Could not save this choice"),
+        ),
+      );
+      await rm(blockedParent, { force: true });
+      process.env.WIRE_DESK_STORE_PATH = validPath;
+      await deliverEditionClick(
+        gateway,
+        initialDelivery,
+        actionId,
+        "edition_append_retry_success",
+      );
+      const history = JSON.parse(await readFile(validPath, "utf8"));
+      assert.equal(history.length, 1);
+      assert.equal(
+        gateway.packets.filter(
+          ({ payload }) => payload.kind === "slack.message.replace",
+        ).length,
+        1,
+      );
+      assert.equal(runCanonical.count, 1);
+    } finally {
+      await handle.stop();
+      restore();
+      await rm(root, { recursive: true, force: true });
+    }
   },
 );
 
