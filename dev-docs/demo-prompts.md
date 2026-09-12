@@ -42,6 +42,44 @@ Expected: a **real task record**, with a returned URL you can open from the thre
 
 The prompt and `propose_action` guide approval behavior but do not enforce approval around every external MCP call. Use a demo workspace. For an enforced authorization example, run the standalone [Auth0 recipe](auth0/README.md).
 
+## Content: signal, brief, edition, log
+
+This is the Wire Desk demo — the same `apps/channel` app, retargeted from incident response to content drafting. See [SPEC_WIRE_DESK.md](../docs/SPEC_WIRE_DESK.md) (sections 9–11) and [PLAN_HACKATHON.md](../docs/PLAN_HACKATHON.md) for the full design and build checklist.
+
+Prerequisites: [Slack setup](setup.md), your selected model provider, Exa for trend signal.
+
+### 1. Establish the surrounding context
+
+Before mentioning the bot, put these messages into a thread:
+
+> been getting a ton of DMs asking how I actually use Claude Code day to day
+>
+> feels like everyone's arguing about agentic coding right now, might be worth riding that
+>
+> we haven't posted anything since the product launch video two weeks ago
+
+Then ask:
+
+> @wiredesk we should make something out of this. Read the thread, check what's actually trending on agentic coding workflows right now, and draft a brief.
+
+Expected: `read_thread`, then `search_web` (Exa) with visible source-link buttons, then `master_brief_card`, then one `edition_card` per relevant platform (at least a Reel, a Threads post, and a blog edition). Check that the brief's hook/development/closing reflect the DM question and the launch-video gap from the thread — not generic content advice.
+
+### 2. Approve a format
+
+Click **Use this Reel** on the Reels edition.
+
+Expected: the card updates in place to "Saved to the archive: **Reel** for ...". No message is posted to any external platform — this only writes to the local decision log. Verify by checking `apps/channel/.data/decisions.json` directly: it must contain a new entry with today's date and platform `instagram_reel`. A changed card alone is not proof; the file write is.
+
+### 3. Ask the follow-up question
+
+> @wiredesk what format am I actually using most this month?
+
+Expected: `get_format_stats` then `format_stats_card`, listing Reel with a count that matches exactly how many times it's been clicked during rehearsal plus the live take — never an invented industry-average answer. Run this once against a fresh/empty log first and confirm it says plainly there is no history yet, instead of guessing.
+
+### 4. Show a failure path
+
+Unset `EXA_API_KEY` (or use an invalid key) and repeat step 1's mention. Expected: either `search_web` is not registered at all (gated by `isSearchConfigured()` in `channel.tsx`), or if a live key fails mid-run, the thread sees a plain "Web search failed" message before the agent still drafts `master_brief_card` from `read_thread` alone. This is the Technical Execution failure/cancellation evidence [SUBMISSION.md](../SUBMISSION.md#evidence-for-the-judging-criteria) asks for.
+
 ## Browser: ambient context and approved workplace actions
 
 ```bash
