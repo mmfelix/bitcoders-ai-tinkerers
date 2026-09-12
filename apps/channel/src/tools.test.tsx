@@ -1,6 +1,12 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { createChannel } from "@copilotkit/channels";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  ChannelDeliveryTerminatedError,
+  createChannel,
+} from "@copilotkit/channels";
 import { startChannelsWithGatewayControl } from "@copilotkit/channels-intelligence";
 import {
   ManagedGateway,
@@ -8,7 +14,12 @@ import {
   concreteThread,
 } from "./testing/managed-gateway";
 import { z } from "zod";
-import { proposeAction, readThread } from "./tools";
+import {
+  getFormatStatsTool,
+  logDecision,
+  proposeAction,
+  readThread,
+} from "./tools";
 
 /** Only the methods these tools call; the rest of Thread is irrelevant here. */
 const stubContext = (thread: Record<string, unknown>) =>
@@ -18,6 +29,20 @@ const stubContext = (thread: Record<string, unknown>) =>
     actor: { id: "a1" },
     platform: "slack",
   }) as never;
+
+async function withToolStore<T>(callback: (storePath: string) => Promise<T>) {
+  const directory = await mkdtemp(join(tmpdir(), "wire-desk-tools-"));
+  const storePath = join(directory, "nested path", "decisions.json");
+  const previous = process.env.WIRE_DESK_STORE_PATH;
+  process.env.WIRE_DESK_STORE_PATH = storePath;
+  try {
+    return await callback(storePath);
+  } finally {
+    if (previous === undefined) delete process.env.WIRE_DESK_STORE_PATH;
+    else process.env.WIRE_DESK_STORE_PATH = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+}
 
 describe("read_thread", () => {
   it("returns the messages when the surface exposes history", async () => {
@@ -34,14 +59,165 @@ describe("read_thread", () => {
   it("degrades into an instruction, not an empty array, when history is unavailable", async () => {
     // getMessages() is capability-gated: it returns [] rather than throwing on
     // surfaces that cannot read history. Handing that [] straight to the model
-    // reads as "the thread is empty", and the agent then answers confidently
-    // about an incident it knows nothing about.
+    // reads as "the thread is empty", and the agent then drafts confidently
+    // without the content context it was asked to use.
     const result = await readThread.handler(
       {},
       stubContext({ getMessages: mock.fn(async () => []) }),
     );
     assert.equal(typeof result, "string");
     assert.match(String(result), /cannot see earlier messages/i);
+  });
+});
+
+describe("log_decision", () => {
+  it("validates the SDK boundary and rejects empty decision fields", () => {
+    const result = logDecision.parameters.safeParse({
+      idea: "",
+      sourceTrend: "thread only",
+      platform: "threads",
+      format: "Thread post",
+    });
+    assert.equal(result.success, false);
+  });
+
+  it("returns the server-timestamped entry only after it is persisted", async () => {
+    await withToolStore(async (storePath) => {
+      const result = await logDecision.handler(
+        {
+          idea: "Launch teaser",
+          sourceTrend: "thread only",
+          platform: "instagram_reel",
+          format: "Reel",
+        },
+        stubContext({}),
+      );
+      assert.equal(typeof result, "object");
+      assert.ok(
+        typeof result === "object" &&
+          result !== null &&
+          "decidedAt" in result,
+      );
+      assert.match(String((result as { decidedAt: string }).decidedAt), /Z$/);
+      assert.deepEqual(JSON.parse(await readFile(storePath, "utf8")), [result]);
+    });
+  });
+
+  it("does not claim success for invalid direct handler arguments", async () => {
+    await withToolStore(async (storePath) => {
+      const post = mock.fn(async () => undefined);
+      const result = await logDecision.handler(
+        {
+          idea: "   ",
+          sourceTrend: "thread only",
+          platform: "threads",
+          format: "Thread post",
+        },
+        stubContext({ post }),
+      );
+      assert.match(String(result), /incomplete or invalid/i);
+      assert.equal(post.mock.callCount(), 1);
+      await assert.rejects(readFile(storePath, "utf8"), { code: "ENOENT" });
+    });
+  });
+
+  it("reports a filesystem failure without returning the persisted entry", async () => {
+    await withToolStore(async (storePath) => {
+      await writeFile(join(storePath, ".."), "not a directory", "utf8");
+      const post = mock.fn(async () => undefined);
+      const result = await logDecision.handler(
+        {
+          idea: "Launch teaser",
+          sourceTrend: "thread only",
+          platform: "instagram_reel",
+          format: "Reel",
+        },
+        stubContext({ post }),
+      );
+      assert.match(String(result), /history is unavailable|disk access/i);
+      assert.equal(post.mock.callCount(), 1);
+    });
+  });
+
+  it("does not convert a terminal delivery error into model-visible output", async () => {
+    const previous = process.env.WIRE_DESK_STORE_PATH;
+    const terminal = new ChannelDeliveryTerminatedError("delivery closed");
+    process.env.WIRE_DESK_STORE_PATH = "";
+    try {
+      await assert.rejects(
+        async () =>
+          logDecision.handler(
+            {
+              idea: "Launch teaser",
+              sourceTrend: "thread only",
+              platform: "threads",
+              format: "Thread",
+            },
+            stubContext({
+              post: async () => {
+                throw terminal;
+              },
+            }),
+          ),
+        (error: unknown) => error === terminal,
+      );
+    } finally {
+      if (previous === undefined) delete process.env.WIRE_DESK_STORE_PATH;
+      else process.env.WIRE_DESK_STORE_PATH = previous;
+    }
+  });
+});
+
+describe("get_format_stats", () => {
+  it("tells the agent plainly when there is no decision history", async () => {
+    await withToolStore(async () => {
+      const result = await getFormatStatsTool.handler({}, stubContext({}));
+      assert.match(String(result), /no decisions logged/i);
+    });
+  });
+
+  it("reports corrupt history instead of presenting an empty ranking", async () => {
+    await withToolStore(async (storePath) => {
+      await mkdir(join(storePath, ".."), { recursive: true });
+      await writeFile(storePath, "{\"broken\":", "utf8");
+      const post = mock.fn(async () => undefined);
+      const result = await getFormatStatsTool.handler(
+        {},
+        stubContext({ post }),
+      );
+      assert.match(String(result), /history is invalid/i);
+      assert.equal(post.mock.callCount(), 1);
+    });
+  });
+
+  it("returns the persisted ranking as raw tool data", async () => {
+    await withToolStore(async () => {
+      await logDecision.handler(
+        {
+          idea: "Launch teaser",
+          sourceTrend: "thread only",
+          platform: "threads",
+          format: "Thread",
+        },
+        stubContext({}),
+      );
+      await logDecision.handler(
+        {
+          idea: "Launch teaser two",
+          sourceTrend: "thread only",
+          platform: "threads",
+          format: "Thread",
+        },
+        stubContext({}),
+      );
+      const result = await getFormatStatsTool.handler({}, stubContext({}));
+      assert.ok(Array.isArray(result));
+      assert.equal(result.length, 1);
+      assert.equal(result[0]?.platform, "threads");
+      assert.equal(result[0]?.format, "Thread");
+      assert.equal(result[0]?.count, 2);
+      assert.equal(typeof result[0]?.lastUsed, "string");
+    });
   });
 });
 

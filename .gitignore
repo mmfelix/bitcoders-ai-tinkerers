@@ -14,6 +14,9 @@ apps/mobile/.expo/
 # Web approval and attempt metadata (not task storage)
 .data/
 
+# Local settings
+settings.local.json
+
 # Added by CopilotKit CLI: credential files, which must never be committed.
 .env.*
 !.env.example

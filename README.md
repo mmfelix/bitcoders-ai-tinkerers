@@ -25,7 +25,7 @@ Use Node.js 22+, then clone and install the kit:
 ```bash
 git clone https://github.com/CopilotKit/agents-everywhere-starter-kit.git
 cd agents-everywhere-starter-kit
-npm ci
+pnpm install --frozen-lockfile
 cp .env.example .env
 ```
 

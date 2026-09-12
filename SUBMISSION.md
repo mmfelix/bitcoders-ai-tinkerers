@@ -9,10 +9,18 @@ Choose your city on the [global event page](https://aitinkerers.org/hackathons/g
 - [ ] We identify inherited templates, libraries, prompts, components, and starter code separately from our event work
 
 **What we inherited**
-<!-- Include this starter kit and any reused examples. -->
+This repository's CopilotKit Channels starter, its managed gateway test fixture,
+the shared surface rules, and the original incident example remain inherited
+infrastructure. The incident components and tests are retained as reference
+coverage but are not registered by the Wire Desk channel.
 
 **What we built during the hackathon**
-<!-- Describe the new core interaction and point to its implementation. Running the supplied incident demo alone does not establish a new project. -->
+Wire Desk turns a content-planning Slack thread into a master brief and
+platform-specific editions. The registered cards live in
+`apps/channel/src/components.tsx`; explicit format choices are persisted by
+`apps/channel/src/store.ts` and queried through the two Wire Desk tools in
+`apps/channel/src/tools.tsx`. A card click records a local decision only; it
+does not publish or send content.
 
 ## Title and description
 
@@ -60,7 +68,9 @@ Judges score each of the four official criteria from 1–5. This checklist helps
 - [ ] State which sponsor technologies made the interaction possible
 - [ ] Keep the video within the event's limit and check audio
 
-See [demo prompts](dev-docs/demo-prompts.md) for a reproducible incident workflow.
+See [demo prompts](dev-docs/demo-prompts.md) for the inherited incident workflow
+and the Wire Desk content workflow. Live credentials and final video evidence
+must still be supplied by the team before submission.
 
 ## Social post and final submission
 

@@ -397,7 +397,7 @@ export const WIRE_DESK_PROMPT = `${SURFACE_RULES}\n\n---\n\n${WIRE_DESK_ROLE}`;
 
 1. **Contexto**: los 3 mensajes semilla + el prompt disparador de la sección de Diego. Esperado: `read_thread` → `search_web` (con cards de fuentes) → `master_brief_card` → `edition_card` × varias plataformas.
 2. **Aprobar un formato**: click en "Use this Reel". Esperado: la card se actualiza a "Saved to the archive: Reel for...". Verificar `apps/channel/.data/decisions.json` directamente — tiene que aparecer la entrada nueva (esto es la prueba real, no solo la card cambiada, tal como pide `SUBMISSION.md`: "offline tests alone do not prove the deployed flow").
-3. **Pregunta de seguimiento**: `@wiredesk what format am I actually using most this month?` Esperado: `get_format_stats` → `format_stats_card` con los conteos reales de la sesión, no un promedio inventado.
+3. **Pregunta de seguimiento**: `@wiredesk what format am I actually using most in the recorded history?` Esperado: `get_format_stats` → `format_stats_card` con los conteos reales de todo el historial, no un promedio inventado.
 4. **Camino de falla**: sacar `EXA_API_KEY` (o invalidarlo) y repetir el paso 1. Esperado: o `search_web` ni se registra (`isSearchConfigured()`), o si falla en vivo, el agente lo dice en texto plano y redacta igual desde el hilo. Esta es la evidencia de "Technical Execution" que pide `SUBMISSION.md`.
 
 **Mapeo a [SUBMISSION.md](../SUBMISSION.md)**

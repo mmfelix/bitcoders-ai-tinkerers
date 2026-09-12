@@ -10,6 +10,7 @@
  * schemas — lives here, and this module imports nothing from Node.
  */
 export { SYSTEM_PROMPT, SURFACE_RULES, ONCALL_ROLE } from "./prompt";
+export { WIRE_DESK_PROMPT, WIRE_DESK_ROLE } from "./wire-desk-prompt";
 export { DEFAULT_MODEL, MODEL_NOTES } from "./model-meta";
 export {
   searchWebParameters,

@@ -2,7 +2,7 @@
 
 **OpenAI + CopilotKit Channels + Exa**
 
-Build an agent that reads an existing conversation, researches what matters, and replies in the same Slack thread with native cards and source links. Try a team research discussion, support handoff, project decision, or incident review. The included incident scenario shows how the infrastructure fits together; replace it with your own workflow.
+Build Wire Desk: an agent that reads an existing content conversation, researches public trend signal, and drafts a modular brief with platform-specific editions in the same Slack thread. It records an explicit format choice locally, but never publishes or sends content.
 
 [![Slack thread agent demo](../../assets/demos/slack.gif)](../../assets/demos/slack.mp4)
 
@@ -20,6 +20,8 @@ CHANNEL_CODE=your-channel-code
 INTELLIGENCE_API_KEY=your-project-key
 EXA_API_KEY=your-key
 EXA_SEARCH_TYPE=fast
+# Optional Wire Desk decision archive; defaults to apps/channel/.data/decisions.json
+# WIRE_DESK_STORE_PATH=/absolute/path/to/decisions.json
 ```
 
 Choose an OpenAI model available to your account. Start the official onboarding handoff:
@@ -34,16 +36,22 @@ This installs the maintained `channels-setup` skill and prints a prompt. Give th
 npm run dev:slack
 ```
 
-Invite the bot to a Slack channel and mention it in a populated thread. CopilotKit Intelligence manages the Slack connection; this listener needs no public tunnel or Slack app token on the managed path.
+Invite the bot to a Slack channel and mention it in a populated content-planning thread. CopilotKit Intelligence manages the Slack connection; this listener needs no public tunnel or Slack app token on the managed path.
 
 ## Try the flow
 
-1. Add two or three facts to a Slack thread before mentioning the agent.
-2. Ask it to catch up using the thread and render a card. Verify facts came from earlier messages rather than your last prompt.
-3. Ask it to research a related question with Exa. `search_web` posts native **Search sources** cards when sources are returned; open the links and separate published evidence from facts in your thread.
-4. Ask a follow-up that relies on the discussion. Check the answer and card remain in the same thread.
+1. Add a content idea, audience signal, and publishing gap to a Slack thread before mentioning the agent.
+2. Ask it to read the thread, research public signal, and draft a brief. Verify the native brief and editions use the earlier messages.
+3. Click one edition's format button. Verify the card updates in place and the isolated JSON archive gains exactly one entry.
+4. Ask which format is most chosen in the recorded history. Verify the counts come from the archive, including the explicit empty-history response.
 
-Use [demo prompts](../../dev-docs/demo-prompts.md#slack-context-sources-card-follow-up) for exact incident inputs. If you add an external write, enforce approval in code before that write. The included proposal card records a decision without executing a production action.
+Use the [Wire Desk demo prompts](../../dev-docs/demo-prompts.md#content-signal-brief-edition-log) for exact content inputs. Any external write remains out of scope; the approval card records a local decision without publishing.
+
+## Wire Desk decision archive
+
+The Wire Desk content workflow stores explicit format choices in a local JSON archive. By default this is `apps/channel/.data/decisions.json`; set `WIRE_DESK_STORE_PATH` to use an isolated private or demo archive. Relative overrides resolve from the process working directory, so use an absolute path for tests and rehearsals.
+
+The archive is validated on every read and write. Missing history is an empty first run, but malformed JSON, an empty physical file, or an invalid entry is reported as unavailable and is never replaced automatically. Restore the file manually or configure a new path. The writer uses a private temporary file and an atomic rename to avoid truncating a valid archive, but it does not lock concurrent read-modify-write operations; run one listener and make demo writes sequentially. Concurrent writers can lose updates.
 
 ## Customize these files
 
@@ -53,8 +61,8 @@ Use [demo prompts](../../dev-docs/demo-prompts.md#slack-context-sources-card-fol
 | Channel lifecycle | [src/channel.tsx](src/channel.tsx): mention, subscribe, respond to subscribed messages |
 | Channel-only run adapter | [src/agent.ts](src/agent.ts): keeps outer transcript/state while using fresh inner agent runs |
 | Thread context and research | [src/tools.tsx](src/tools.tsx) and [src/search.tsx](src/search.tsx): `read_thread` and Exa-backed `search_web` |
-| Native cards | [src/components.tsx](src/components.tsx): incident card and timeline via Channels JSX |
-| Prompt | [Shared prompt](../../packages/agent-core/src/prompt.ts) |
+| Native cards | [src/components.tsx](src/components.tsx): brief, edition, and format-history cards via Channels JSX |
+| Prompt | [Wire Desk prompt](../../packages/agent-core/src/wire-desk-prompt.ts) |
 
 OpenRouter can be used as the model gateway through the shared provider settings in [using-sponsor-tools.md](../../using-sponsor-tools.md#openrouter). Teams or another messaging platform can reuse the Channels pattern, but this starter app is wired for managed Slack.
 

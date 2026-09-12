@@ -1,16 +1,33 @@
 import { createChannel } from "@copilotkit/channels";
-import { isSearchConfigured, isWorkplaceConfigured, WORKPLACE_CONTEXT } from "agent-core";
+import { isSearchConfigured } from "agent-core";
 import { makeChannelAgent } from "./agent";
 import { required } from "./env";
-import { IncidentCard, Timeline, welcomeMessage } from "./components";
-import { proposeAction, readThread, searchTheWeb } from "./tools";
+import {
+  EditionCard,
+  FormatStatsCard,
+  MasterBriefCard,
+  welcomeMessage,
+} from "./components";
+import {
+  getFormatStatsTool,
+  logDecision,
+  readThread,
+  searchTheWeb,
+} from "./tools";
 
 // Tools are registered only when their credential is present, so the agent is
 // never handed a tool that will fail when it calls it.
-const tools = [
+export const wireDeskTools = [
   readThread,
-  proposeAction,
+  logDecision,
+  getFormatStatsTool,
   ...(isSearchConfigured() ? [searchTheWeb] : []),
+];
+
+export const wireDeskComponents = [
+  MasterBriefCard,
+  EditionCard,
+  FormatStatsCard,
 ];
 
 export const channel = createChannel({
@@ -25,20 +42,21 @@ export const channel = createChannel({
   identifyUser: "platform",
 
   agent: makeChannelAgent,
-  tools,
-  components: [IncidentCard, Timeline],
+  tools: wireDeskTools,
+  components: wireDeskComponents,
 
   // Injected into the agent's prompt on every run.
   context: [
-    
     {
       description: "Rendering",
       value:
-        "You can draw native UI by calling incident_card or timeline. Prefer them over prose whenever the answer has structure.",
+        "You can draw native UI by calling master_brief_card, edition_card, or format_stats_card. Prefer them over prose whenever the answer has structure.",
     },
-    ...(isWorkplaceConfigured()
-      ? [{ description: "Workplace", value: WORKPLACE_CONTEXT }]
-      : []),
+    {
+      description: "Scope",
+      value:
+        "This demo drafts and records local format choices. It never publishes, schedules, or sends content to a real platform.",
+    },
     {
       description: "Surface",
       value:
