@@ -223,3 +223,62 @@ sequenceDiagram
 | `apps/channel/src/components.tsx` | Sumar `MasterBriefCard`, `EditionCard` (o `Table` de ediciones) y `FormatStatsCard`, con el mismo patrón que `IncidentCard`/`Timeline` |
 | `apps/channel/src/channel.tsx` | Registrar los tools/components nuevos en `tools`/`components`, y ajustar el `context` y `welcomeMessage` al dominio de contenido |
 | `packages/agent-core/src/prompt.ts` | Nuevo `WIRE_DESK_ROLE` que reemplaza `ONCALL_ROLE`; `SURFACE_RULES` se reutiliza sin tocar |
+
+## 11. Arquitectura del producto completo (frontend / backend / servicios)
+
+La sección 10 es el recorte que entra en las 48 horas del hackathon (todo adentro de `apps/channel`). Esto es la idea completa de las secciones 1–8 si se construyera como producto, con Slack como una superficie más, no la única.
+
+```mermaid
+flowchart TB
+    subgraph FE["Frontend — por dónde entra el creador"]
+        SLACK["Canal de Slack\napps/channel — MVP hackathon"]
+        WEB["Panel web\napps/web — Fase 2"]
+        MOBILE["App móvil\napps/mobile — Fase 3"]
+    end
+
+    subgraph BE["Backend — orquestador del agente"]
+        API["Orquestador\n(agent-core · makeAgent)"]
+        DETECT["Servicio de detección\nde tendencias"]
+        DRAFT["Servicio de redacción\n(plantilla maestra)"]
+        ADAPT["Servicio de adaptación\npor plataforma"]
+        METRICS["Servicio de métricas\n(archivo central)"]
+    end
+
+    subgraph DATA["Datos"]
+        IDEASDB[("Ideas y plantillas")]
+        DECISIONSDB[("Decisiones y métricas")]
+    end
+
+    subgraph EXT["Servicios externos"]
+        LLM[("Modelo LLM\nOpenAI / OpenRouter")]
+        EXA[("Exa Search")]
+        TRENDS[("Google Trends / RSS — Fase 2")]
+        SOCIAL[("APIs de plataformas\nMeta · Threads · TikTok · YouTube — Fase 2/3")]
+    end
+
+    SLACK --> API
+    WEB --> API
+    MOBILE --> API
+
+    API --> DETECT
+    DETECT --> EXA
+    DETECT -.-> TRENDS
+
+    API --> DRAFT --> LLM
+    DRAFT --> IDEASDB
+
+    API --> ADAPT
+    ADAPT --> IDEASDB
+
+    API --> METRICS
+    METRICS --> DECISIONSDB
+    METRICS -. "Fase 2: lectura automática de desempeño" .-> SOCIAL
+
+    SLACK -. "Fase 3: publicación asistida, con click de aprobación" .-> SOCIAL
+```
+
+Notas de lectura:
+
+- Las líneas punteadas son Fase 2/3 — nada de eso se construye para el hackathon.
+- El "orquestador" no es un servicio nuevo aparte: es `makeAgent()` de `packages/agent-core`, el mismo para las tres superficies. Cada frontend le pasa su propio contexto (hilo de Slack, página web, pantalla del móvil).
+- `DETECT`, `DRAFT`, `ADAPT` y `METRICS` en el MVP no son microservicios separados — son los tools (`search_web`, `log_decision`, `get_format_stats`) y components (`MasterBriefCard`, etc.) que ya mapeamos en la sección 10. Se dibujan como servicios acá para mostrar hacia dónde escalan si el producto crece más allá de un solo canal de Slack.
